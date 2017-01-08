@@ -1,0 +1,25 @@
+project Music_Downloader_Config is
+	for Source_Dirs  use ("source");
+	for Object_Dir use "obj";
+	for Exec_Dir use ".";
+	for Main use ("music_downloader.adb");
+
+	package Compiler is
+		for Default_Switches ("Ada")
+			use ("-O0", "-gnatwa", "-gnat12");
+	end Compiler;
+
+	package Binder is
+		for Switches ("Ada") use ("-shared");
+	end Binder;
+
+	package Builder is
+		for Executable ("music_downloader.adb") use "music_downloader";
+		for Default_Switches ("Ada") use ("-s", "-j4", "-k");
+	end Builder;
+
+	package Linker is
+		for Default_Switches ("Ada") use ("-s", "-Wl,--gc-sections");
+	end Linker;
+	
+end Music_Downloader_Config;
