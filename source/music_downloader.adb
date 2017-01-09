@@ -1,9 +1,10 @@
 with GNAT.Regpat; use GNAT.Regpat;
 with Ada.Text_IO; use Ada.Text_IO;
 with Ada.Directories; use Ada.Directories;
+with Ada.Exceptions;
 with Ada.Command_Line;
-with Ada.Strings.Fixed; 
-with Ada.Strings; 
+with Ada.Strings.Fixed;
+with Ada.Strings;
 with Ada.Strings.Maps;
 
 procedure Music_Downloader is
@@ -76,7 +77,7 @@ procedure Music_Downloader is
 	end Terminate_Program;
 
 	function Search_Regexp (Pattern : in String; Search_In : in String) return Match_Array is
-		Re : constant Pattern_Matcher := Compile (Pattern);
+		Re : constant Pattern_Matcher := Compile (Pattern, Case_Insensitive);
 		Matches : Match_Array (0..2);
 	begin
 		Match (Re, Search_In, Matches);
@@ -187,19 +188,27 @@ procedure Music_Downloader is
 
 				Delete_File("./" & Youtube_File);
 			else
-				Put_Line("There was a problem finding '" & Data.Title & "' by " & Data.Artist & "during the second pull");
+				Put_Line("There was a problem finding '" & Translate(Data.Title(Data.Title'First..Index(Data.Title, "--")-1), Dash_to_Space_Map) & 
+					"' by " & Translate(Data.Artist(Data.Artist'First..Index(Data.Artist, "--")-1), Dash_to_Space_Map) & " during the second pull");
 			end if;
 
 			Delete_File("./" & Second_File);
 		else
-			Put_Line("There was a problem finding any record of '" & Data.Title & "' by " & Data.Artist);
+			Put_Line("There was a problem finding any record of '" & Translate(Data.Title(Data.Title'First..Index(Data.Title, "--")-1), Dash_to_Space_Map) & 
+				"' by " & Translate(Data.Artist(Data.Artist'First..Index(Data.Artist, "--")-1), Dash_to_Space_Map));
 		end if;
 
 		Delete_File("./" & First_File);
 
-	exception 
-		when others =>
-			Put_Line("Something Happened");
+	exception
+		when Error : Others =>
+			Ada.Text_IO.Put("Unexpected Exception :  Failed on " & 
+				Translate(Data.Title(Data.Title'First..Index(Data.Title, "--")-1), Dash_to_Space_Map) & " by " &
+				Translate(Data.Artist(Data.Artist'First..Index(Data.Artist, "--")-1), Dash_to_Space_Map) & " with " & 
+				Ada.Exceptions.Exception_Information(Error));
+			if Is_Open(Data_File) then
+				Close(Data_File);
+			end if;
 			if Exists("./" & Youtube_File) then
 				Delete_File("./" & Youtube_File);
 			end if;

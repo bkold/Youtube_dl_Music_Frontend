@@ -19,7 +19,7 @@ project Music_Downloader_Config is
 	end Builder;
 
 	package Linker is
-		for Default_Switches ("Ada") use ("-s", "-Wl,--gc-sections");
+		for Default_Switches ("Ada") use ("-Wl,--gc-sections");
 	end Linker;
 	
 end Music_Downloader_Config;
