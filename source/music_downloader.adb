@@ -27,6 +27,17 @@ procedure Music_Downloader is
 		From=>"-", 
 		To=>"_");
 
+	function Remove_Plus (Line : in String) return String is
+		use Ada.Strings.Fixed;
+		Plus_Index : constant Natural := Index(Line, "+", Line'First);
+	begin
+		if Plus_Index /= 0 then
+			return Replace_Slice(Line, Plus_Index, Plus_Index, "and");
+		else
+			return Line;
+		end if;
+	end Remove_Plus;
+
 	protected type Protected_File is
 		procedure Open_For_Reading (Name : in String);
 		procedure Close_File;
@@ -95,7 +106,7 @@ procedure Music_Downloader is
 
 	procedure Download (URL : in String) is
 	begin
-		Program_Call("youtube-dl " & Character'Val(34) & "https://www.youtube.com" & URL & "-q -x --audio-quality 0 --audio-format mp3" & ASCII.NUL);
+		Program_Call("youtube-dl ""https://www.youtube.com" & URL & "-q -x --audio-quality 0 --audio-format mp3" & ASCII.NUL);
 	end Download;
 
 	procedure Wait (File : in String) is
@@ -116,8 +127,8 @@ procedure Music_Downloader is
 		Youtube_File : constant String := "~temp/Youtube_Pull" & Integer'Image(-ID);
 	begin
 
-		-- Put_Line("curl -s -o " & First_File & " " & Character'Val(34) & "https://play.google.com/store/search?q=" & Translate(Data.Artist, Dash_to_Under_Map) & "-" & Translate(Data.Title, Dash_to_Under_Map) & "&c=music&hl=en" & Character'Val(34) & ASCII.NUL);
-		Program_Call("curl -s -o " & First_File & " " & Character'Val(34) & "https://play.google.com/store/search?q=" & Translate(Data.Artist, Dash_to_Under_Map) & "-" & Translate(Data.Title, Dash_to_Under_Map) & "&c=music&hl=en" & Character'Val(34) & ASCII.NUL);
+		-- Put_Line("curl -s -o " & First_File & " ""https://play.google.com/store/search?q=" & Translate(Data.Artist, Dash_to_Under_Map) & "-" & Translate(Data.Title, Dash_to_Under_Map) & "&c=music&hl=en" & Character'Val(34) & ASCII.NUL);
+		Program_Call("curl -s -o " & First_File & " ""https://play.google.com/store/search?q=" & Translate(Data.Artist, Dash_to_Under_Map) & "-" & Translate(Data.Title, Dash_to_Under_Map) & "&c=music&hl=en" & Character'Val(34) & ASCII.NUL);
 		Wait("./" & First_File);
 
 		Open(Data_File, In_File, "./" & First_File);
@@ -125,7 +136,7 @@ procedure Music_Downloader is
 			declare
 				Pulled_Line : constant String := Get_Line(Data_File);
 			begin
-				Match_Indices := Search_Regexp("song-.*?href=" & Character'Val(34) & "(.*?);", Pulled_Line);
+				Match_Indices := Search_Regexp("song-.*?href=""(.*?);", Pulled_Line);
 				if Match_Indices(0) /= No_Match then
 					-- Put_Line("MATCHED!!!");
 					-- Put_Line(Pulled_Line(Match_Indices.First .. Match_Indices.Last));
@@ -138,8 +149,8 @@ procedure Music_Downloader is
 		if Match_Indices(0) /= No_Match then
 
 			Match_Indices(0) := No_Match;
-			-- Put_Line("curl -s -o " & Second_File & " " & Character'Val(34) & "https://play.google.com" & Next_URL & Character'Val(34) & ASCII.NUL);
-			Program_Call("curl -s -o " & Second_File & " " & Character'Val(34) & "https://play.google.com" & Next_URL & Character'Val(34) & ASCII.NUL);
+			-- Put_Line("curl -s -o " & Second_File & " ""https://play.google.com" & Next_URL & Character'Val(34) & ASCII.NUL);
+			Program_Call("curl -s -o " & Second_File & " ""https://play.google.com" & Next_URL & Character'Val(34) & ASCII.NUL);
 			Wait("./" & Second_File);
 
 			Open(Data_File, In_File, "./" & Second_File);
@@ -151,7 +162,7 @@ procedure Music_Downloader is
 					if Match_Indices(0) /= No_Match then
 						-- Put_Line("MATCHED!!!");
 						Data.Time := Get_Time(Pulled_Line(Match_Indices(1).First..Match_Indices(1).Last));
-						-- Put_Line(Natural'Image(Data.Time));
+						Put_Line(Translate(Data.Title(Data.Title'First..Index(Data.Title, "--")-1), Dash_to_Space_Map) & " time = " & Natural'Image(Data.Time));
 					end if;
 				end;
 			end loop;
@@ -160,8 +171,8 @@ procedure Music_Downloader is
 			if Match_Indices(0) /= No_Match then
 
 				Match_Indices(0) := No_Match;
-				-- Put_Line("curl -s -o " & Youtube_File & " " & Character'Val(34) & "https://www.youtube.com/results?search_query=" & Data.Artist & "-" & Data.Title & Character'Val(34) & ASCII.NUL);
-				Program_Call("curl -s -o " & Youtube_File & " " & Character'Val(34) & "https://www.youtube.com/results?search_query=" & Data.Artist & "-" & Data.Title & Character'Val(34) & ASCII.NUL);
+				-- Put_Line("curl -s -o " & Youtube_File & " ""https://www.youtube.com/results?search_query=" & Remove_Plus(Data.Artist) & "-" & Remove_Plus(Data.Title) & Character'Val(34) & ASCII.NUL);
+				Program_Call("curl -s -o " & Youtube_File & " ""https://www.youtube.com/results?search_query=" & Remove_Plus(Data.Artist) & "-" & Remove_Plus(Data.Title) & Character'Val(34) & ASCII.NUL);
 				Wait("./" & Youtube_File);
 
 				Open(Data_File, In_File, "./" & Youtube_File);
@@ -170,7 +181,7 @@ procedure Music_Downloader is
 						Pulled_Line : constant String := Get_Line(Data_File);
 						Pulled_Time : Natural;
 					begin
-						Match_Indices := Search_Regexp("href=" & Character'Val(34) & "(.*?)class.*?Duration: (.*?)\.", Pulled_Line);
+						Match_Indices := Search_Regexp("href=""(.*?)class.*?Duration: (.*?)\.", Pulled_Line);
 						if Match_Indices(0) /= No_Match then
 							Pulled_Time := Get_Time(Pulled_Line(Match_Indices(2).First..Match_Indices(2).Last));
 							if Pulled_Time in Data.Time-5..Data.Time+5 then
@@ -185,6 +196,11 @@ procedure Music_Downloader is
 					end;
 				end loop;
 				Close(Data_File);
+
+				if Match_Indices(0) = No_Match then
+					Put_Line("There was a problem finding a suitable video for '" & Translate(Data.Title(Data.Title'First..Index(Data.Title, "--")-1), Dash_to_Space_Map) & 
+						"' by " & Translate(Data.Artist(Data.Artist'First..Index(Data.Artist, "--")-1), Dash_to_Space_Map) & " on youtube");
+				end if;
 
 				Delete_File("./" & Youtube_File);
 			else
