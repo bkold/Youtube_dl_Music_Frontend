@@ -6,7 +6,7 @@ project Music_Downloader_Config is
 
 	package Compiler is
 		for Default_Switches ("Ada")
-			use ("-O0", "-gnatwa", "-gnat12");
+			use ("-O2", "-gnatwa", "-gnat12");
 	end Compiler;
 
 	package Binder is
@@ -21,5 +21,5 @@ project Music_Downloader_Config is
 	package Linker is
 		for Default_Switches ("Ada") use ("-Wl,--gc-sections");
 	end Linker;
-	
+
 end Music_Downloader_Config;

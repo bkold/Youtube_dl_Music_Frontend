@@ -5,38 +5,17 @@ with Ada.Exceptions;
 with Ada.Command_Line;
 with Ada.Strings.Fixed;
 with Ada.Strings;
-with Ada.Strings.Maps;
+
+with String_Manipulation;
+with Call;
 
 procedure Music_Downloader is
-
-	procedure Program_Call (Command : in String) with Import, Convention=>C, Link_Name=>"system";
 
 	type Song_Type is record
 		Time : Natural;
 		Artist : String(1..32);
 		Title : String(1..64);
 	end record;
-
-	Space_to_Dash_Map : constant Ada.Strings.Maps.Character_Mapping := Ada.Strings.Maps.To_Mapping(
-		From=>" ", 
-		To=>"-");
-	Dash_to_Space_Map : constant Ada.Strings.Maps.Character_Mapping := Ada.Strings.Maps.To_Mapping(
-		From=>"-", 
-		To=>" ");
-	Dash_to_Under_Map : constant Ada.Strings.Maps.Character_Mapping := Ada.Strings.Maps.To_Mapping(
-		From=>"-", 
-		To=>"_");
-
-	function Remove_Plus (Line : in String) return String is
-		use Ada.Strings.Fixed;
-		Plus_Index : constant Natural := Index(Line, "+", Line'First);
-	begin
-		if Plus_Index /= 0 then
-			return Replace_Slice(Line, Plus_Index, Plus_Index, "and");
-		else
-			return Line;
-		end if;
-	end Remove_Plus;
 
 	protected type Protected_File is
 		procedure Open_For_Reading (Name : in String);
@@ -64,7 +43,7 @@ procedure Music_Downloader is
 			return Get_Line(Input_File);
 		end Get_Line;
 
-		function End_Of_File return Boolean is			
+		function End_Of_File return Boolean is
 		begin
 			return End_Of_File(Input_File);
 		end End_Of_File;
@@ -95,20 +74,6 @@ procedure Music_Downloader is
 		return Matches;
 	end Search_Regexp;
 
-	function Get_Time (Input_String : in String) return Natural is
-		use Ada.Strings.Fixed;
-		Time : Natural;
-	begin
-		Time := Natural'Value(Input_String(Input_String'First .. Index(Input_String, ":", Input_String'First)-1)) * 60;
-		Time := Time + Natural'Value(Input_String(Index(Input_String, ":", Input_String'First)+1 .. Input_String'Last));
-		return Time;
-	end Get_Time;
-
-	procedure Download (URL : in String) is
-	begin
-		Program_Call("youtube-dl ""https://www.youtube.com" & URL & "-q -x --audio-quality 0 --audio-format mp3" & ASCII.NUL);
-	end Download;
-
 	procedure Wait (File : in String) is
 	begin
 		while not Exists(File) loop
@@ -119,6 +84,8 @@ procedure Music_Downloader is
 
 	procedure Get_Song (Data : in out Song_Type; ID : in Natural) is
 		use Ada.Strings.Fixed;
+		use Call;
+		use String_Manipulation;
 		Next_URL : String(1..64);
 		Match_Indices : Match_Array(0..2) := (others=>No_Match);
 		Data_File : File_Type;
@@ -127,8 +94,7 @@ procedure Music_Downloader is
 		Youtube_File : constant String := "~temp/Youtube_Pull" & Integer'Image(-ID);
 	begin
 
-		-- Put_Line("curl -s -o " & First_File & " ""https://play.google.com/store/search?q=" & Translate(Data.Artist, Dash_to_Under_Map) & "-" & Translate(Data.Title, Dash_to_Under_Map) & "&c=music&hl=en" & Character'Val(34) & ASCII.NUL);
-		Program_Call("curl -s -o " & First_File & " ""https://play.google.com/store/search?q=" & Translate(Data.Artist, Dash_to_Under_Map) & "-" & Translate(Data.Title, Dash_to_Under_Map) & "&c=music&hl=en" & Character'Val(34) & ASCII.NUL);
+		Search_Play(First_File, Data.Artist, Data.Title);
 		Wait("./" & First_File);
 
 		Open(Data_File, In_File, "./" & First_File);
@@ -138,19 +104,16 @@ procedure Music_Downloader is
 			begin
 				Match_Indices := Search_Regexp("song-.*?href=""(.*?);", Pulled_Line);
 				if Match_Indices(0) /= No_Match then
-					-- Put_Line("MATCHED!!!");
-					-- Put_Line(Pulled_Line(Match_Indices.First .. Match_Indices.Last));
-					Move(Pulled_Line(Match_Indices(1).First .. Match_Indices(1).Last), Next_URL);
+					Move(Pulled_Line(Match_Indices(1).First..Match_Indices(1).Last), Next_URL);
 				end if;
 			end;
-		end loop;		
+		end loop;
 		Close(Data_File);
 
 		if Match_Indices(0) /= No_Match then
 
 			Match_Indices(0) := No_Match;
-			-- Put_Line("curl -s -o " & Second_File & " ""https://play.google.com" & Next_URL & Character'Val(34) & ASCII.NUL);
-			Program_Call("curl -s -o " & Second_File & " ""https://play.google.com" & Next_URL & Character'Val(34) & ASCII.NUL);
+			Search_Time(Second_File, Next_URL);
 			Wait("./" & Second_File);
 
 			Open(Data_File, In_File, "./" & Second_File);
@@ -158,11 +121,9 @@ procedure Music_Downloader is
 				declare
 					Pulled_Line : constant String := Get_Line(Data_File);
 				begin
-					Match_Indices := Search_Regexp("<th>Songs</th>.*?" & Translate(Data.Title(Data.Title'First..Index(Data.Title, "--")-1), Dash_to_Space_Map) & ".*?aria-label.*?>(.*?)<", Pulled_Line);
+					Match_Indices := Search_Regexp("<th>Songs</th>.*?" & Quote(To_Spaces(Data.Title)) & ".*?aria-label.*?>(.*?)<", Pulled_Line);
 					if Match_Indices(0) /= No_Match then
-						-- Put_Line("MATCHED!!!");
 						Data.Time := Get_Time(Pulled_Line(Match_Indices(1).First..Match_Indices(1).Last));
-						Put_Line(Translate(Data.Title(Data.Title'First..Index(Data.Title, "--")-1), Dash_to_Space_Map) & " time = " & Natural'Image(Data.Time));
 					end if;
 				end;
 			end loop;
@@ -171,8 +132,7 @@ procedure Music_Downloader is
 			if Match_Indices(0) /= No_Match then
 
 				Match_Indices(0) := No_Match;
-				-- Put_Line("curl -s -o " & Youtube_File & " ""https://www.youtube.com/results?search_query=" & Remove_Plus(Data.Artist) & "-" & Remove_Plus(Data.Title) & Character'Val(34) & ASCII.NUL);
-				Program_Call("curl -s -o " & Youtube_File & " ""https://www.youtube.com/results?search_query=" & Remove_Plus(Data.Artist) & "-" & Remove_Plus(Data.Title) & Character'Val(34) & ASCII.NUL);
+				Search_Tube(Youtube_File, Data.Artist, Data.Title);
 				Wait("./" & Youtube_File);
 
 				Open(Data_File, In_File, "./" & Youtube_File);
@@ -185,9 +145,6 @@ procedure Music_Downloader is
 						if Match_Indices(0) /= No_Match then
 							Pulled_Time := Get_Time(Pulled_Line(Match_Indices(2).First..Match_Indices(2).Last));
 							if Pulled_Time in Data.Time-5..Data.Time+5 then
-								-- Put_Line("MATCHED!!!");
-								-- Put_Line(Pulled_Line(Match_Indices(1).First..Match_Indices(1).Last));
-								-- Put_Line(Natural'Image(Pulled_Time));
 								Download(Pulled_Line(Match_Indices(1).First..Match_Indices(1).Last));
 							else
 								Match_Indices(0) := No_Match;
@@ -198,29 +155,29 @@ procedure Music_Downloader is
 				Close(Data_File);
 
 				if Match_Indices(0) = No_Match then
-					Put_Line("There was a problem finding a suitable video for '" & Translate(Data.Title(Data.Title'First..Index(Data.Title, "--")-1), Dash_to_Space_Map) & 
-						"' by " & Translate(Data.Artist(Data.Artist'First..Index(Data.Artist, "--")-1), Dash_to_Space_Map) & " on youtube");
+					Put_Line("There was a problem finding a suitable video for '" & To_Spaces(Data.Title) &
+						"' by " & To_Spaces(Data.Artist) & " on youtube");
 				end if;
 
 				Delete_File("./" & Youtube_File);
 			else
-				Put_Line("There was a problem finding '" & Translate(Data.Title(Data.Title'First..Index(Data.Title, "--")-1), Dash_to_Space_Map) & 
-					"' by " & Translate(Data.Artist(Data.Artist'First..Index(Data.Artist, "--")-1), Dash_to_Space_Map) & " during the second pull");
+				Put_Line("There was a problem finding '" & To_Spaces(Data.Title) &
+					"' by " & To_Spaces(Data.Artist) & " during the second pull");
 			end if;
 
 			Delete_File("./" & Second_File);
 		else
-			Put_Line("There was a problem finding any record of '" & Translate(Data.Title(Data.Title'First..Index(Data.Title, "--")-1), Dash_to_Space_Map) & 
-				"' by " & Translate(Data.Artist(Data.Artist'First..Index(Data.Artist, "--")-1), Dash_to_Space_Map));
+			Put_Line("There was a problem finding any record of '" & To_Spaces(Data.Title) &
+				"' by " & To_Spaces(Data.Artist));
 		end if;
 
 		Delete_File("./" & First_File);
 
 	exception
 		when Error : Others =>
-			Ada.Text_IO.Put("Unexpected Exception :  Failed on " & 
-				Translate(Data.Title(Data.Title'First..Index(Data.Title, "--")-1), Dash_to_Space_Map) & " by " &
-				Translate(Data.Artist(Data.Artist'First..Index(Data.Artist, "--")-1), Dash_to_Space_Map) & " with " & 
+			Ada.Text_IO.Put("Unexpected Exception :  Failed on " &
+				To_Spaces(Data.Title) & " by " &
+				To_Spaces(Data.Artist) & " with " &
 				Ada.Exceptions.Exception_Information(Error));
 			if Is_Open(Data_File) then
 				Close(Data_File);
@@ -256,14 +213,13 @@ procedure Music_Downloader is
 			begin
 				Move(Line(Line'First..Index(Line, "|")-1), New_Song.Artist, Right, Left);
 				Move(Line(Index(Line, "|")+1..Line'Last), New_Song.Title, Right, Left);
-				Translate(New_Song.Artist, Space_to_Dash_Map);
-				Translate(New_Song.Title, Space_to_Dash_Map);
+				Translate(New_Song.Artist, String_Manipulation.Space_to_Dash_Map);
+				Translate(New_Song.Title, String_Manipulation.Space_to_Dash_Map);
 				Get_Song(New_Song, ID);
 
 			end;
 		end loop;
 	end Downloader_Thread;
-
 
 begin
 
