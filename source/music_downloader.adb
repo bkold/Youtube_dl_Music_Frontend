@@ -56,6 +56,7 @@ procedure Music_Downloader is
 		use Ada.Command_Line;
 	begin
 		Create_Directory("~temp");
+		Create_Directory("~fails");
 		delay 0.5;
 		User_Input_File.Open_For_Reading(Argument(1));
 	end Initialize_Program;
@@ -64,6 +65,7 @@ procedure Music_Downloader is
 	begin
 		User_Input_File.Close_File;
 		Delete_Directory("~temp");
+		Delete_Directory("~fails");
 	end Terminate_Program;
 
 	function Search_Regexp (Pattern : in String; Search_In : in String) return Match_Array is
@@ -157,18 +159,27 @@ procedure Music_Downloader is
 				if Match_Indices(0) = No_Match then
 					Put_Line("There was a problem finding a suitable video for '" & To_Spaces(Data.Title) &
 						"' by " & To_Spaces(Data.Artist) & " on youtube");
+					--DEBUG
+					Copy_File("./" & Youtube_File, "./~fails/" & Data.Artist & Data.Title & " Youtube");
+					Copy_File("./" & Second_File, "./~fails/" & Data.Artist & Data.Title & " Second");
+					Copy_File("./" & First_File, "./~fails/" & Data.Artist & Data.Title & " First");
 				end if;
 
 				Delete_File("./" & Youtube_File);
 			else
 				Put_Line("There was a problem finding '" & To_Spaces(Data.Title) &
 					"' by " & To_Spaces(Data.Artist) & " during the second pull");
+				--DEBUG
+				Copy_File("./" & Second_File, "./~fails/" & Data.Artist & Data.Title & " Second");
+				Copy_File("./" & First_File, "./~fails/" & Data.Artist & Data.Title & " First");
 			end if;
 
 			Delete_File("./" & Second_File);
 		else
 			Put_Line("There was a problem finding any record of '" & To_Spaces(Data.Title) &
 				"' by " & To_Spaces(Data.Artist));
+			--DEBUG
+			Copy_File("./" & First_File, "./~fails/" & Data.Artist & Data.Title & " First");
 		end if;
 
 		Delete_File("./" & First_File);
